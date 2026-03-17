@@ -126,13 +126,13 @@ def submit(request, course_id):
 
 # An example method to collect the selected choices from the exam form from the request object
 def extract_answers(request):
-   submitted_anwsers = []
-   for key in request.POST:
-       if key.startswith('choice'):
-           value = request.POST[key]
-           choice_id = int(value)
-           submitted_anwsers.append(choice_id)
-   return submitted_anwsers
+    submitted_answers = []
+    for key in request.POST:
+        if key.startswith('choice'):
+            choice_id = int(request.POST[key])
+            choice = Choice.objects.get(id=choice_id)
+            submitted_answers.append(choice)
+    return submitted_answers
 
 
 # <HINT> Create an exam result view to check if learner passed exam and show their question results and result for each question,
@@ -142,20 +142,32 @@ def extract_answers(request):
         # For each selected choice, check if it is a correct answer or not
         # Calculate the total score
 def show_exam_result(request, course_id, submission_id): 
-    context = {} 
     course = get_object_or_404(Course, pk=course_id) 
-    submission = Submission.objects.get(id=submission_id) 
-    choices = submission.choices.all()
-    total_score = 0 
-    questions = course.question_set.all() # Assuming course has related questions
+    submission = get_object_or_404(Submission, pk=submission_id) 
 
-    for question in questions: 
-        correct_choices = question.choice_set.filter(is_correct=True)
-        context['course'] = course 
-        context['grade'] = total_score 
-        context['choices'] = choices
+    selected_choices = submission.choices.all()
+    selected_ids = selected_choices.values_list('id', flat=True)
+
+    total_score = 0
+    total_possible_score = 0
+
+    questions = course.question_set.all()
+
+    for question in questions:
+        total_possible_score += question.grade
+
+        # ✅ Use your model method
+        if question.is_get_score(selected_ids):
+            total_score += question.grade
+
+    # Calculate percentage
+    grade = (total_score / total_possible_score) * 100
+
+    context = {
+        'course': course,
+        'grade': grade,
+        'total_score': total_score,
+        'total_possible_score': total_possible_score,
+    }
 
     return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
-
-
-
